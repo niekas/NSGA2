@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /home/albertas/how_to_use/env/bin/python2.7
 
 #    This file is a modified part of DEAP package.
 #
@@ -18,6 +18,9 @@
 import array
 import random
 import json
+import sys
+import os
+import subprocess
 from optparse import OptionParser
 
 import numpy
@@ -35,10 +38,10 @@ from deap import tools
 
 try:
     # try importing the C version
-    from deap.tools._hypervolume import _hv
+    from _hypervolume import _hv
 except ImportError:
     # fallback on python version
-    from deap.tools._hypervolume import pyhv as _hv
+    from _hypervolume import pyhv as _hv
 hypervolume = _hv.hypervolume
 
 
@@ -47,12 +50,18 @@ parser.add_option("--func_name", dest="func_name")
 parser.add_option("--max_calls", dest="max_calls")
 parser.add_option("--d", dest="d")
 parser.add_option("--seed", dest="seed")
+parser.add_option("--max_duration", dest="max_duration")
+parser.add_option("--task_id", dest="task_id")
+parser.add_option("--callback", dest="callback")
 (options, args) = parser.parse_args()
 
 max_calls = int(options.max_calls)
 func_name = options.func_name
 d = int(options.d)
 seed = int(options.seed)
+max_duration = options.max_duration
+task_id = options.task_id
+callback = options.callback
 
 problem = problems.get_problem(options.func_name)
 
@@ -102,8 +111,9 @@ def nsga2(max_calls, func_name, d, seed=None):
     NGEN = max_calls/ MU # 750  # 250    # Number of evaluations = NGEN * MU
     CXPB = 0.9
 
-    stats_file = open('log/stats_%s_%d__nsga2_%s.txt' % (func_name, d, str(seed)), 'w')
-    front_file = open('log/front_%s_%d__nsga2_%s.txt' % (func_name, d, str(seed)), 'w')
+    file_path = os.path.dirname(os.path.abspath(sys.argv[0]))
+    stats_file = open(file_path + '/log/stats_%s_%d__nsga2_%s.txt' % (func_name, d, str(seed)), 'w')
+    front_file = open(file_path + '/log/front_%s_%d__nsga2_%s.txt' % (func_name, d, str(seed)), 'w')
 
     stats = tools.Statistics(lambda ind: ind.fitness.values)
     stats.register("min", numpy.min, axis=0)
@@ -165,6 +175,15 @@ def nsga2(max_calls, func_name, d, seed=None):
 
     stats_file.close()
     front_file.close()
+
+    subprocess.call([callback,
+        '--calls=%d' % problem.evals,
+        '--hyper_volume=%f' % hv,
+        '--uniformity=%f' % uni,
+        '--task_id=%d' % task_id,
+        '--status=D',
+        '-exe=%s' %  sys.argv[0],
+    ])
     return pop, logbook
 
 

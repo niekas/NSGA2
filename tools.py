@@ -3,6 +3,10 @@
 from math import hypot, sqrt
 from functools import wraps
 from itertools import repeat
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(sys.argv[0])))
+
 try:
     import numpy
 except ImportError:
@@ -10,10 +14,10 @@ except ImportError:
 
 try:
     # try importing the C version
-    from deap.tools._hypervolume import hv
+    from _hypervolume import hv
 except ImportError:
     # fallback on python version
-    from deap.tools._hypervolume import pyhv as hv
+    from _hypervolume import pyhv as hv
 
 class translate(object):
     """Decorator for evaluation functions, it translates the objective
