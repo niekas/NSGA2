@@ -169,6 +169,7 @@ def nsga2(max_calls, func_name, d, seed=None):
         uni = uniformity(problem.pareto_front)
         calls = problem.evals
         stats_file.write('%d %f %f\n' % (calls, hv, uni))
+        stats_file.flush()
 
     for p in problem.pareto_front:
         front_file.write(str(p) +'\n')
