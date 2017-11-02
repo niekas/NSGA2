@@ -22,16 +22,64 @@ from math import sin, cos, pi, exp, e, sqrt
 from operator import mul
 from functools import reduce
 
+# Note: algorithm complexity reduction:
+# Is tol value nearer the zero with new pareto_front points? If yes - update the tol.
+
+def domination(q, p):
+    # // 0 - q dominates p
+    # // 1 - none of them dominates
+    # // 2 - p dominates q
+    q_better = 0
+    p_better = 0
+    for i in range(len(q)):
+        if q[i] < p[i]:
+            q_better += 1
+        if q[i] > p[i]:
+            p_better += 1
+    if (q_better == len(q)):
+        return 0
+    if (p_better == len(p)):
+        return 2
+    return 1
+
+
+def update_pareto_front(p, pareto_front):
+    # if any(q > p for q in S):
+    #     return
+    # for q in [q for q in S if p > q]:
+    #     S.remove(q)
+    #     S.add(p)
+    dominated = []
+    for q in pareto_front:
+        relation = domination(q, p)
+        if (relation == 0):
+            return False
+        if (relation == 2):
+            dominated.append(q)
+
+    for q in dominated:
+        pareto_front.remove(q)
+
+    pareto_front.append(p)
+    return True
+
 
 def evals_dec(func):
     '''Decorator for objective functions, which calculates unique function evaluations.'''
+    # This method should also track pareto front
+    # Hypervolume and uniformity have to be found using the actual pareto front.
     def f(individual, *args, **kwargs):
-        if individual not in f.evals_at:
-            f.evals_at.append(individual[:])
-            f.evals += 1
-        return func(individual, *args, **kwargs)
+        vals = func(individual, *args, **kwargs)
+        # if individual not in f.evals_at:
+            # f.evals_at.append(individual[:])
+            # f.obj_vals.append(vals)
+        f.evals += 1
+        update_pareto_front(vals, f.pareto_front)
+        return vals
     f.evals = 0
-    f.evals_at = []
+    # f.evals_at = []
+    # f.obj_vals = []
+    f.pareto_front = []
     return f
 
 
@@ -414,7 +462,7 @@ zdt1.dimension = 6   # 30
 zdt1.nadir = [11., 11.]
 zdt1.bound_low = [0.] + [0.]*(zdt1.dimension-1)
 zdt1.bound_up = [1.] + [1.]*(zdt1.dimension-1)
-
+zdt1.crits = 2
 
 @evals_dec
 def zdt2(individual):
@@ -431,6 +479,7 @@ zdt2.dimension = 6  # 30
 zdt2.nadir = [11., 11.]
 zdt2.bound_low = [0.] + [0.]*(zdt2.dimension-1)
 zdt2.bound_up = [1.] + [1.]*(zdt2.dimension-1)
+zdt2.crits = 2
 
 @evals_dec
 def zdt3(individual):
@@ -452,6 +501,7 @@ zdt3.dimension = 6  # 30
 zdt3.nadir = [11., 11.]
 zdt3.bound_low = [0.] + [0.]*(zdt3.dimension-1)
 zdt3.bound_up = [1.] + [1.]*(zdt3.dimension-1)
+zdt3.crits = 2
 
 @evals_dec
 def zdt4(individual):
@@ -472,6 +522,7 @@ zdt4.dimension = 6  # 10
 zdt4.nadir = [11., 11.]
 zdt4.bound_low = [0.] + [-5.]*(zdt4.dimension-1)
 zdt4.bound_up = [1.] + [5.]*(zdt4.dimension-1)
+zdt4.crits = 2
 
 @evals_dec
 def zdt6(individual):
@@ -492,8 +543,10 @@ zdt6.dimension = 6  # 10
 zdt6.nadir = [11., 11.]
 zdt6.bound_low = [0.] + [0.]*(zdt6.dimension-1)
 zdt6.bound_up = [1.] + [1.]*(zdt6.dimension-1)
+zdt6.crits = 2
 
-def dtlz1(individual, obj):
+@evals_dec
+def dtlz1(individual, obj=3):
     """DTLZ1 multiobjective function. It returns a tuple of *obj* values.
     The individual must have at least *obj* elements.
     From: K. Deb, L. Thiele, M. Laumanns and E. Zitzler. Scalable Multi-Objective
@@ -520,8 +573,14 @@ def dtlz1(individual, obj):
     f = [0.5 * reduce(mul, individual[:obj-1], 1) * (1 + g)]
     f.extend(0.5 * reduce(mul, individual[:m], 1) * (1 - individual[m]) * (1 + g) for m in reversed(xrange(obj-1)))
     return f
+dtlz1.dimension = 6  # 10
+dtlz1.nadir = [1., 1., 1.]    # PF: (sum fi) = 1, fi > 0
+dtlz1.bound_low = [0.] + [0.]*(dtlz1.dimension-1)
+dtlz1.bound_up = [1.] + [1.]*(dtlz1.dimension-1)
+dtlz1.crits = 3
 
-def dtlz2(individual, obj):
+@evals_dec
+def dtlz2(individual, obj=3):
     """DTLZ2 multiobjective function. It returns a tuple of *obj* values.
     The individual must have at least *obj* elements.
     From: K. Deb, L. Thiele, M. Laumanns and E. Zitzler. Scalable Multi-Objective
@@ -548,8 +607,14 @@ def dtlz2(individual, obj):
     f.extend((1.0+g) * reduce(mul, (cos(0.5*xi*pi) for xi in xc[:m]), 1) * sin(0.5*xc[m]*pi) for m in range(obj-2, -1, -1))
 
     return f
+dtlz2.dimension = 6  # 10
+dtlz2.nadir = [1.5, 1.5, 1.5]
+dtlz2.bound_low = [0.] + [0.]*(dtlz2.dimension-1)
+dtlz2.bound_up = [1.] + [1.]*(dtlz2.dimension-1)
+dtlz2.crits = 3
 
-def dtlz3(individual, obj):
+@evals_dec
+def dtlz3(individual, obj=3):
     """DTLZ3 multiobjective function. It returns a tuple of *obj* values.
     The individual must have at least *obj* elements.
     From: K. Deb, L. Thiele, M. Laumanns and E. Zitzler. Scalable Multi-Objective
@@ -575,8 +640,14 @@ def dtlz3(individual, obj):
     f = [(1.0+g) *  reduce(mul, (cos(0.5*xi*pi) for xi in xc), 1.0)]
     f.extend((1.0+g) * reduce(mul, (cos(0.5*xi*pi) for xi in xc[:m]), 1) * sin(0.5*xc[m]*pi) for m in range(obj-2, -1, -1))
     return f
+dtlz3.dimension = 6  # 10
+dtlz3.nadir = [1.5, 1.5, 1.5]
+dtlz3.bound_low = [0.] + [0.]*(dtlz3.dimension-1)
+dtlz3.bound_up = [1.] + [1.]*(dtlz3.dimension-1)
+dtlz3.crits = 3
 
-def dtlz4(individual, obj, alpha):
+@evals_dec
+def dtlz4(individual, obj=3, alpha=100):
     """DTLZ4 multiobjective function. It returns a tuple of *obj* values. The
     individual must have at least *obj* elements. The *alpha* parameter allows
     for a meta-variable mapping in :func:`dtlz2` :math:`x_i \\rightarrow
@@ -604,8 +675,14 @@ def dtlz4(individual, obj, alpha):
     f = [(1.0+g) *  reduce(mul, (cos(0.5*xi**alpha*pi) for xi in xc), 1.0)]
     f.extend((1.0+g) * reduce(mul, (cos(0.5*xi**alpha*pi) for xi in xc[:m]), 1) * sin(0.5*xc[m]**alpha*pi) for m in range(obj-2, -1, -1))
     return f
+dtlz4.dimension = 6  # 10
+dtlz4.nadir = [1.5, 1.5, 1.5]
+dtlz4.bound_low = [0.] + [0.]*(dtlz4.dimension-1)
+dtlz4.bound_up = [1.] + [1.]*(dtlz4.dimension-1)
+dtlz4.crits = 3
 
-def dtlz5(ind, n_objs):
+@evals_dec
+def dtlz5(ind, n_objs=3):
     """DTLZ5 multiobjective function. It returns a tuple of *obj* values. The
     individual must have at least *obj* elements.
     From: K. Deb, L. Thiele, M. Laumanns and E. Zitzler. Scalable Multi-Objective
@@ -624,8 +701,15 @@ def dtlz5(ind, n_objs):
             fit.append((1 + gval) * cos(pi / 2.0 * ind[0]) *
                        reduce(lambda x,y: x*y, [cos(theta(a)) for a in ind[1:m-1]], 1) * sin(theta(ind[m-1])))
     return fit
+dtlz5.dimension = 6  # 10
+dtlz5.nadir = [1.5, 1.5, 1.5]
+dtlz5.bound_low = [0.] + [0.]*(dtlz5.dimension-1)
+dtlz5.bound_up = [1.] + [1.]*(dtlz5.dimension-1)
+dtlz5.crits = 3
+# Bi-objective case has only one point in Pareto-front
 
-def dtlz6(ind, n_objs):
+@evals_dec
+def dtlz6(ind, n_objs=3):
     """DTLZ6 multiobjective function. It returns a tuple of *obj* values. The
     individual must have at least *obj* elements.
     From: K. Deb, L. Thiele, M. Laumanns and E. Zitzler. Scalable Multi-Objective
@@ -644,17 +728,29 @@ def dtlz6(ind, n_objs):
             fit.append((1 + gval) * cos(pi / 2.0 * ind[0]) *
                        reduce(lambda x,y: x*y, [cos(theta(a)) for a in ind[1:m-1]], 1) * sin(theta(ind[m-1])))
     return fit
+dtlz6.dimension = 6  # 10
+dtlz6.nadir = [1.5, 1.5, 1.5]
+dtlz6.bound_low = [0.] + [0.]*(dtlz6.dimension-1)
+dtlz6.bound_up = [1.] + [1.]*(dtlz6.dimension-1)
+dtlz6.crits = 3
+# Bi-objective case has only one point in Pareto-front
 
-def dtlz7(ind, n_objs):
+@evals_dec
+def dtlz7(ind, n_objs=3):
     """DTLZ7 multiobjective function. It returns a tuple of *obj* values. The
     individual must have at least *obj* elements.
     From: K. Deb, L. Thiele, M. Laumanns and E. Zitzler. Scalable Multi-Objective
     Optimization Test Problems. CEC 2002, p. 825-830, IEEE Press, 2002.
     """
     gval = 1 + 9.0 / len(ind[n_objs-1:]) * sum([a for a in ind[n_objs-1:]])
-    fit = [ind for ind in ind[:n_objs-1]]
+    fit = [x for x in ind[:n_objs-1]]
     fit.append((1 + gval) * (n_objs - sum([a / (1.0 + gval) * (1 + sin(3 * pi * a)) for a in ind[:n_objs-1]])))
     return fit
+dtlz7.dimension = 6  # 10
+dtlz7.nadir = [15., 15., 15.]
+dtlz7.bound_low = [0.] + [0.]*(dtlz7.dimension-1)
+dtlz7.bound_up = [1.] + [1.]*(dtlz7.dimension-1)
+dtlz7.crits = 3
 
 def fonseca(individual):
     """Fonseca and Fleming's multiobjective function.
@@ -734,6 +830,7 @@ ep1.nadir = [2., 3.]
 ep1.bound_low = [0., 0.]
 ep1.bound_up = [2., 2.]
 ep1.dimension = 2.
+ep1.crits = 2
 
 
 @evals_dec
@@ -754,3 +851,19 @@ ep2.nadir = [1., 1.]
 ep2.bound_low = [0., 0.]
 ep2.bound_up = [1., 1.]
 ep2.dimension = 2.
+ep2.crits = 2
+
+
+def get_problem(func_name):
+    if (func_name == 'zdt1'): return zdt1
+    if (func_name == 'zdt2'): return zdt2
+    if (func_name == 'zdt3'): return zdt3
+    if (func_name == 'zdt4'): return zdt4
+    if (func_name == 'zdt6'): return zdt6
+    if (func_name == 'dtlz1'): return dtlz1
+    if (func_name == 'dtlz2'): return dtlz2
+    if (func_name == 'dtlz3'): return dtlz3
+    if (func_name == 'dtlz4'): return dtlz4
+    if (func_name == 'dtlz5'): return dtlz5
+    if (func_name == 'dtlz6'): return dtlz6
+    if (func_name == 'dtlz7'): return dtlz7

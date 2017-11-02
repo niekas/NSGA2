@@ -1,4 +1,6 @@
-#    This file is part of DEAP.
+#! /usr/bin/env python
+
+#    This file is a modified part of DEAP package.
 #
 #    DEAP is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Lesser General Public License as
@@ -16,6 +18,7 @@
 import array
 import random
 import json
+from optparse import OptionParser
 
 import numpy
 
@@ -25,21 +28,41 @@ from deap import algorithms
 from deap import base
 # from deap import benchmarks
 import problems
-from deap.benchmarks.tools import diversity, convergence, hypervolume
+from deap.benchmarks.tools import diversity, convergence
 from tools import uniformity
 from deap import creator
 from deap import tools
 
-creator.create("FitnessMin", base.Fitness, weights=(-1.0, -1.0))
+try:
+    # try importing the C version
+    from deap.tools._hypervolume import _hv
+except ImportError:
+    # fallback on python version
+    from deap.tools._hypervolume import pyhv as _hv
+hypervolume = _hv.hypervolume
+
+
+parser = OptionParser()
+parser.add_option("--func_name", dest="func_name")
+parser.add_option("--max_calls", dest="max_calls")
+parser.add_option("--d", dest="d")
+parser.add_option("--seed", dest="seed")
+(options, args) = parser.parse_args()
+
+max_calls = int(options.max_calls)
+func_name = options.func_name
+d = int(options.d)
+seed = int(options.seed)
+
+problem = problems.get_problem(options.func_name)
+
+
+creator.create("FitnessMin", base.Fitness, weights=(-1.0,)*problem.crits)
 creator.create("Individual", array.array, typecode='d', fitness=creator.FitnessMin)
 
 toolbox = base.Toolbox()
 
 # The problem with its parameters is set only here.
-problem = problems.zdt6
-nadir = problem.nadir
-NDIM = problem.dimension
-BOUND_LOW, BOUND_UP = problem.bound_low, problem.bound_up
 # Problem definition
 # Functions zdt1, zdt2, zdt3, zdt6 have bounds [0, 1]
 ## BOUND_LOW, BOUND_UP = 0.0, 1.0
@@ -49,6 +72,10 @@ BOUND_LOW, BOUND_UP = problem.bound_low, problem.bound_up
 
 # Functions zdt1, zdt2, zdt3 have 30 dimensions, zdt4 and zdt6 have 10
 # NDIM = 6 # 30
+
+nadir = problem.nadir
+NDIM = problem.dimension
+BOUND_LOW, BOUND_UP = problem.bound_low, problem.bound_up
 
 
 def uniform(low, up, size=None):
@@ -68,16 +95,17 @@ toolbox.register("mate", tools.cxSimulatedBinaryBounded, low=BOUND_LOW, up=BOUND
 toolbox.register("mutate", tools.mutPolynomialBounded, low=BOUND_LOW, up=BOUND_UP, eta=20.0, indpb=1.0/NDIM)
 toolbox.register("select", tools.selNSGA2)
 
-def nsga2(seed=None):
+def nsga2(max_calls, func_name, d, seed=None):
     random.seed(seed)
 
-    NGEN = 100  # 250    # Number of evaluations = NGEN * MU
-    MU = 100
+    MU = 20
+    NGEN = max_calls/ MU # 750  # 250    # Number of evaluations = NGEN * MU
     CXPB = 0.9
 
+    stats_file = open('log/stats_%s_%d__nsga2_%s.txt' % (func_name, d, str(seed)), 'w')
+    front_file = open('log/front_%s_%d__nsga2_%s.txt' % (func_name, d, str(seed)), 'w')
+
     stats = tools.Statistics(lambda ind: ind.fitness.values)
-    # stats.register("avg", numpy.mean, axis=0)
-    # stats.register("std", numpy.std, axis=0)
     stats.register("min", numpy.min, axis=0)
     stats.register("max", numpy.max, axis=0)
 
@@ -90,6 +118,7 @@ def nsga2(seed=None):
     invalid_ind = [ind for ind in pop if not ind.fitness.valid]
     fitnesses = toolbox.map(toolbox.evaluate, invalid_ind)
     for ind, fit in zip(invalid_ind, fitnesses):
+        # print(ind, fit)
         ind.fitness.values = fit
 
     # This is just to assign the crowding distance to the individuals
@@ -98,7 +127,7 @@ def nsga2(seed=None):
 
     record = stats.compile(pop)
     logbook.record(gen=0, evals=len(invalid_ind), **record)
-    print(logbook.stream)
+    # print(logbook.stream)
 
     # Begin the generational process
     for gen in range(1, NGEN):
@@ -124,34 +153,20 @@ def nsga2(seed=None):
         pop = toolbox.select(pop + offspring, MU)
         record = stats.compile(pop)
         logbook.record(gen=gen, evals=len(invalid_ind), **record)
-        print(logbook.stream)
 
-    print('Hypervolume: %f' % hypervolume(pop, nadir))
-    print('Uniformity: %f' % uniformity(pop))
-    print('Evaluations: %d' % problem.evals)
+        # print(logbook.stream)
+        hv = hypervolume(numpy.array(problem.pareto_front), nadir)
+        uni = uniformity(problem.pareto_front)
+        calls = problem.evals
+        stats_file.write('%d %f %f\n' % (calls, hv, uni))
 
+    for p in problem.pareto_front:
+        front_file.write(str(p) +'\n')
+
+    stats_file.close()
+    front_file.close()
     return pop, logbook
 
 
 if __name__ == '__main__':
-    # with open("pareto_front/zdt1_front.json") as optimal_front_data:
-    #     optimal_front = json.load(optimal_front_data)
-    # Use 500 of the 1000 points in the json file
-    # optimal_front = sorted(optimal_front[i] for i in range(0, len(optimal_front), 2))
-
-    pop, stats = nsga2()
-    # pop.sort(key=lambda x: x.fitness.values)
-
-    # print(stats)
-    # print("Convergence: ", convergence(pop, optimal_front))
-    # print("Diversity: ", diversity(pop, optimal_front[0], optimal_front[-1]))
-
-    # import matplotlib.pyplot as plt
-    # import numpy
-
-    # front = numpy.array([ind.fitness.values for ind in pop])
-    # optimal_front = numpy.array(optimal_front)
-    # plt.scatter(optimal_front[:,0], optimal_front[:,1], c="r")
-    # plt.scatter(front[:,0], front[:,1], c="b")
-    # plt.axis("tight")
-    # plt.show()
+    pop, stats = nsga2(max_calls, func_name, d, seed=seed)

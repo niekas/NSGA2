@@ -303,7 +303,6 @@ def hypervolume(front, ref=None):
         ref = numpy.max(wobj, axis=0) + 1
     return hv.hypervolume(wobj, ref)
 
-
 def uniformity(front):
     '''Return the uniformity of a *front*. Uniformity (UD) definition taken
     from Yu. Evtushenko article "Nonuniform covering method as applied to
@@ -314,10 +313,10 @@ def uniformity(front):
     '''
     min_dists = []
     for ind in front:
-        p = ind.fitness.values[:]
+        p = ind
         min_dist = float('inf')
         for ind2  in front:
-            p2 = ind2.fitness.values[:]
+            p2 = ind2
             if p != p2:
                 dist = sqrt(sum([(e-e2)**2 for e, e2 in zip(p, p2)]))
                 if dist < min_dist:
